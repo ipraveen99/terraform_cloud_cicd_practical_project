@@ -1,0 +1,53 @@
+name: Terraform Cloud Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Preview deletions or destroy the lab infrastructure
+        required: true
+        type: choice
+        default: preview
+        options:
+          - preview
+          - destroy
+      confirmation:
+        description: Type DESTROY to confirm deletion
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: Terraform destroy preview or execution
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    env:
+      TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
+
+    steps:
+      - name: Check destroy confirmation
+        if: inputs.operation == 'destroy' && inputs.confirmation != 'DESTROY'
+        run: |
+          echo "::error::Type DESTROY in the confirmation field to proceed."
+          exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform initialize
+        run: terraform init -input=false
+
+      - name: Preview resources to destroy
+        if: inputs.operation == 'preview'
+        run: terraform plan -destroy -input=false
+
+      - name: Destroy workspace infrastructure
+        if: inputs.operation == 'destroy' && inputs.confirmation == 'DESTROY'
+        run: terraform destroy -input=false -auto-approve
